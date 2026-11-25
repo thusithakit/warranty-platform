@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package warranty.user.v1;
+
+option java_multiple_files = true;
+option java_package = "com.warranty.contracts.user.v1";
+
+import "common/v1/common.proto";
+
+service UserService {
+  rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
+}
+
+message GetUserPreferencesRequest {
+  string user_id = 1;
+  warranty.common.v1.RequestContext context = 2;
+}
+
+message GetUserPreferencesResponse {
+  string user_id = 1;
+  string timezone = 2;
+  bool email_notifications_enabled = 3;
+  bool push_notifications_enabled = 4;
+}

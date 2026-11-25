@@ -1,0 +1,255 @@
+name: ${COMPOSE_PROJECT_NAME:-warranty-platform}
+
+services:
+  # ----------------------------- Databases -----------------------------
+  postgres-keycloak:
+    image: postgres:17-alpine
+    container_name: warranty-postgres-keycloak
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${KEYCLOAK_DB_NAME}
+      POSTGRES_USER: ${KEYCLOAK_DB_USER}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    ports:
+      - "5540:5432"
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    networks: [data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KEYCLOAK_DB_USER} -d ${KEYCLOAK_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-user:
+    image: postgres:17-alpine
+    container_name: warranty-postgres-user
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${USER_DB_NAME}
+      POSTGRES_USER: ${USER_DB_USER}
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD}
+    ports: ["5541:5432"]
+    volumes: [user-db-data:/var/lib/postgresql/data]
+    networks: [data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER} -d ${USER_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-purchase:
+    image: postgres:17-alpine
+    container_name: warranty-postgres-purchase
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PURCHASE_DB_NAME}
+      POSTGRES_USER: ${PURCHASE_DB_USER}
+      POSTGRES_PASSWORD: ${PURCHASE_DB_PASSWORD}
+    ports: ["5542:5432"]
+    volumes: [purchase-db-data:/var/lib/postgresql/data]
+    networks: [data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PURCHASE_DB_USER} -d ${PURCHASE_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-warranty:
+    image: postgres:17-alpine
+    container_name: warranty-postgres-warranty
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${WARRANTY_DB_NAME}
+      POSTGRES_USER: ${WARRANTY_DB_USER}
+      POSTGRES_PASSWORD: ${WARRANTY_DB_PASSWORD}
+    ports: ["5543:5432"]
+    volumes: [warranty-db-data:/var/lib/postgresql/data]
+    networks: [data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WARRANTY_DB_USER} -d ${WARRANTY_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-document:
+    image: postgres:17-alpine
+    container_name: warranty-postgres-document
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DOCUMENT_DB_NAME}
+      POSTGRES_USER: ${DOCUMENT_DB_USER}
+      POSTGRES_PASSWORD: ${DOCUMENT_DB_PASSWORD}
+    ports: ["5544:5432"]
+    volumes: [document-db-data:/var/lib/postgresql/data]
+    networks: [data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DOCUMENT_DB_USER} -d ${DOCUMENT_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-notification:
+    image: postgres:17-alpine
+    container_name: warranty-postgres-notification
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${NOTIFICATION_DB_NAME}
+      POSTGRES_USER: ${NOTIFICATION_DB_USER}
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+    ports: ["5545:5432"]
+    volumes: [notification-db-data:/var/lib/postgresql/data]
+    networks: [data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NOTIFICATION_DB_USER} -d ${NOTIFICATION_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-analytics:
+    image: postgres:17-alpine
+    container_name: warranty-postgres-analytics
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${ANALYTICS_DB_NAME}
+      POSTGRES_USER: ${ANALYTICS_DB_USER}
+      POSTGRES_PASSWORD: ${ANALYTICS_DB_PASSWORD}
+    ports: ["5546:5432"]
+    volumes: [analytics-db-data:/var/lib/postgresql/data]
+    networks: [data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_DB_USER} -d ${ANALYTICS_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-ai:
+    image: postgres:17-alpine
+    container_name: warranty-postgres-ai
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AI_DB_NAME}
+      POSTGRES_USER: ${AI_DB_USER}
+      POSTGRES_PASSWORD: ${AI_DB_PASSWORD}
+    ports: ["5547:5432"]
+    volumes: [ai-db-data:/var/lib/postgresql/data]
+    networks: [data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AI_DB_USER} -d ${AI_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ----------------------------- Identity ------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    container_name: warranty-keycloak
+    restart: unless-stopped
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/${KEYCLOAK_DB_NAME}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: http://localhost:8081
+      KEYCLOAK_DEV_USERNAME: ${KEYCLOAK_DEV_USERNAME}
+      KEYCLOAK_DEV_PASSWORD: ${KEYCLOAK_DEV_PASSWORD}
+      KEYCLOAK_DEV_EMAIL: ${KEYCLOAK_DEV_EMAIL}
+    ports:
+      - "${KEYCLOAK_HTTP_PORT:-8081}:8080"
+    volumes:
+      - ./infrastructure/keycloak/realm-import:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres-keycloak:
+        condition: service_healthy
+    networks: [gateway-network, internal-network, data-network]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+
+  # ------------------------------- Kafka --------------------------------
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: warranty-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:${KAFKA_HOST_PORT:-9094}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    ports:
+      - "${KAFKA_HOST_PORT:-9094}:9094"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks: [internal-network]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: warranty-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "${KAFKA_UI_PORT:-8090}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: warranty-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks: [internal-network]
+
+  # ----------------------------- API Gateway ----------------------------
+  api-gateway:
+    build:
+      context: ./gateway/api-gateway
+    container_name: warranty-api-gateway
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8080
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/warranty-platform/protocol/openid-connect/certs
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      keycloak:
+        condition: service_started
+    networks: [gateway-network, internal-network]
+
+networks:
+  gateway-network:
+    name: warranty-gateway-network
+  internal-network:
+    name: warranty-internal-network
+  data-network:
+    name: warranty-data-network
+    internal: true
+
+volumes:
+  keycloak-db-data:
+  user-db-data:
+  purchase-db-data:
+  warranty-db-data:
+  document-db-data:
+  notification-db-data:
+  analytics-db-data:
+  ai-db-data:
+  kafka-data:

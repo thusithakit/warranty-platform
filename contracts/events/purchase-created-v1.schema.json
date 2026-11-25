@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.warranty.local/events/purchase-created-v1.schema.json",
+  "title": "PurchaseCreatedV1",
+  "allOf": [
+    {
+      "$ref": "event-envelope-v1.schema.json"
+    }
+  ],
+  "properties": {
+    "eventType": {
+      "const": "purchase.created"
+    },
+    "eventVersion": {
+      "const": 1
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purchaseId",
+        "userId",
+        "purchaseDate"
+      ],
+      "properties": {
+        "purchaseId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "productName": {
+          "type": "string"
+        },
+        "purchaseDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "warrantyExpected": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

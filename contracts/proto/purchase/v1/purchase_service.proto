@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package warranty.purchase.v1;
+
+option java_multiple_files = true;
+option java_package = "com.warranty.contracts.purchase.v1";
+
+import "common/v1/common.proto";
+
+service PurchaseService {
+  rpc GetPurchase(GetPurchaseRequest) returns (GetPurchaseResponse);
+  rpc ValidatePurchase(ValidatePurchaseRequest) returns (ValidatePurchaseResponse);
+}
+
+message GetPurchaseRequest {
+  string purchase_id = 1;
+  string user_id = 2;
+  warranty.common.v1.RequestContext context = 3;
+}
+
+message GetPurchaseResponse {
+  string purchase_id = 1;
+  string user_id = 2;
+  string product_name = 3;
+  string purchase_date = 4;
+}
+
+message ValidatePurchaseRequest {
+  string purchase_id = 1;
+  string user_id = 2;
+  warranty.common.v1.RequestContext context = 3;
+}
+
+message ValidatePurchaseResponse {
+  bool valid = 1;
+  string reason = 2;
+}

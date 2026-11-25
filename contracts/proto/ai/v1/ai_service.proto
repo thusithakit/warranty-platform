@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package warranty.ai.v1;
+
+option java_multiple_files = true;
+option java_package = "com.warranty.contracts.ai.v1";
+
+import "common/v1/common.proto";
+
+service AiProcessingService {
+  // Accepts a processing request and returns quickly with a job ID.
+  // Completion is published asynchronously through Kafka.
+  rpc SubmitExtraction(SubmitExtractionRequest) returns (SubmitExtractionResponse);
+  rpc GetExtractionStatus(GetExtractionStatusRequest) returns (GetExtractionStatusResponse);
+}
+
+message SubmitExtractionRequest {
+  string document_id = 1;
+  string document_url = 2;
+  string document_type = 3;
+  string callback_event_id = 4;
+  warranty.common.v1.RequestContext context = 5;
+}
+
+message SubmitExtractionResponse {
+  string job_id = 1;
+  string status = 2;
+}
+
+message GetExtractionStatusRequest {
+  string job_id = 1;
+  warranty.common.v1.RequestContext context = 2;
+}
+
+message GetExtractionStatusResponse {
+  string job_id = 1;
+  string status = 2;
+  string error_code = 3;
+}
