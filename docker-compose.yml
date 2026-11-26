@@ -280,6 +280,39 @@ services:
       - internal-network
       - data-network
 
+  warranty-service:
+    build:
+      context: ./services/warranty-service
+      dockerfile: Dockerfile
+    container_name: warranty-service
+    restart: unless-stopped
+
+    environment:
+      SERVER_PORT: 4004
+
+      # PostgreSQL
+      WARRANTY_DB_URL: jdbc:postgresql://postgres-warranty:5432/${WARRANTY_DB_NAME}
+      WARRANTY_DB_APP_USER: ${WARRANTY_DB_USER}
+      WARRANTY_DB_APP_PASSWORD: ${WARRANTY_DB_PASSWORD}
+      WARRANTY_DB_MIGRATOR_USER: ${WARRANTY_DB_USER}
+      WARRANTY_DB_MIGRATOR_PASSWORD: ${WARRANTY_DB_PASSWORD}
+
+      # Kafka
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+    ports:
+      - "4004:4004"
+
+    depends_on:
+      postgres-warranty:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+    networks:
+      - internal-network
+      - data-network
+
 networks:
   gateway-network:
     name: warranty-gateway-network
