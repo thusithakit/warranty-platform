@@ -145,6 +145,7 @@ services:
     image: quay.io/keycloak/keycloak:26.3
     container_name: warranty-keycloak
     restart: unless-stopped
+    command: start-dev --import-realm
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/${KEYCLOAK_DB_NAME}
@@ -232,7 +233,52 @@ services:
     depends_on:
       keycloak:
         condition: service_started
-    networks: [gateway-network, internal-network]
+    networks:
+      - gateway-network
+      - internal-network
+
+  purchase-service:
+    build:
+      context: ./services/purchase-service
+      dockerfile: Dockerfile
+
+    container_name: warranty-purchase-service
+    restart: unless-stopped
+
+    ports:
+      - "4003:4003"
+
+    environment:
+      SERVER_PORT: 4003
+
+      # PostgreSQL
+      PURCHASE_DB_URL: jdbc:postgresql://postgres-purchase:5432/${PURCHASE_DB_NAME}
+
+      # Temporary: use the existing PostgreSQL user for both.
+      # We can introduce separate app/migrator roles afterward.
+      PURCHASE_DB_APP_USER: ${PURCHASE_DB_USER}
+      PURCHASE_DB_APP_PASSWORD: ${PURCHASE_DB_PASSWORD}
+      PURCHASE_DB_MIGRATOR_USER: ${PURCHASE_DB_USER}
+      PURCHASE_DB_MIGRATOR_PASSWORD: ${PURCHASE_DB_PASSWORD}
+
+      # Kafka
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      # Keycloak
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/warranty-platform
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/warranty-platform/protocol/openid-connect/certs
+
+    depends_on:
+      postgres-purchase:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+
+    networks:
+      - internal-network
+      - data-network
 
 networks:
   gateway-network:
@@ -242,6 +288,8 @@ networks:
   data-network:
     name: warranty-data-network
     internal: true
+  warranty-network:
+    driver: bridge
 
 volumes:
   keycloak-db-data:
