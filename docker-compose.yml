@@ -348,6 +348,30 @@ services:
       - internal-network
       - data-network
 
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: warranty-user-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 4001
+      USER_DB_URL: jdbc:postgresql://postgres-user:5432/${USER_DB_NAME}
+      USER_DB_APP_USER: ${USER_DB_USER}
+      USER_DB_APP_PASSWORD: ${USER_DB_PASSWORD}
+      USER_DB_MIGRATOR_USER: ${USER_DB_USER}
+      USER_DB_MIGRATOR_PASSWORD: ${USER_DB_PASSWORD}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI}
+    ports:
+      - "4001:4001"
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+    networks:
+      - internal-network
+      - data-network
+
 networks:
   gateway-network:
     name: warranty-gateway-network
