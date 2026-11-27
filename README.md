@@ -101,19 +101,3 @@ Kafka runs in single-node KRaft mode for local development. It is not a producti
 The broker is available to containers at `kafka:9092` and to host tools at `localhost:9094`.
 
 Topic creation and event schemas are documented in `contracts/events/README.md`.
-
-## Important architecture rules
-
-1. Each service owns its database and migrations.
-2. No cross-service foreign keys or direct database access.
-3. Each service's runtime database user must not be a superuser or schema owner.
-4. Use gRPC for request/response service communication.
-5. Use Kafka for domain events and asynchronous workflows.
-6. Publish events through a transactional outbox; consume idempotently with an inbox.
-7. Kafka delivery is at-least-once. Design consumers for effectively-once business effects.
-8. Gateway authentication is not the only security boundary; services must validate tokens and enforce authorization and resource ownership.
-9. Do not put secrets in Git. `.env` is ignored.
-
-## Phase 1 scope
-
-This repository is an infrastructure and contract foundation. Domain services, outbox publishers, Kafka consumers, gRPC server implementations, Cloudinary integration and Python AI processing are intentionally delivered in subsequent phases.

@@ -314,6 +314,40 @@ services:
       - internal-network
       - data-network
 
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: warranty-notification-service
+    restart: unless-stopped
+
+    environment:
+      SERVER_PORT: 4006
+
+      NOTIFICATION_DB_URL: jdbc:postgresql://postgres-notification:5432/${NOTIFICATION_DB_NAME}
+      NOTIFICATION_DB_APP_USER: ${NOTIFICATION_DB_USER}
+      NOTIFICATION_DB_APP_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+      NOTIFICATION_DB_MIGRATOR_USER: ${NOTIFICATION_DB_USER}
+      NOTIFICATION_DB_MIGRATOR_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI}
+
+    ports:
+      - "4006:4006"
+
+    depends_on:
+      postgres-notification:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+    networks:
+      - internal-network
+      - data-network
+
 networks:
   gateway-network:
     name: warranty-gateway-network

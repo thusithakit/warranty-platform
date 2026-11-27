@@ -24,6 +24,11 @@ spring:
               predicates:
                 - Path=/api/v1/warranties,/api/v1/warranties/**
 
+            - id: notification-service
+              uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:4006}
+              predicates:
+                - Path=/api/v1/notifications,/api/v1/notifications/**
+
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
