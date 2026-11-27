@@ -3,6 +3,7 @@ package com.thusithakit.warrantyservice.controller;
 import com.thusithakit.warrantyservice.dto.request.CreateWarrantyRequest;
 import com.thusithakit.warrantyservice.dto.request.UpdateWarrantyRequest;
 import com.thusithakit.warrantyservice.dto.response.WarrantyResponse;
+import com.thusithakit.warrantyservice.service.WarrantyReminderService;
 import com.thusithakit.warrantyservice.service.WarrantyService;
 
 import jakarta.validation.Valid;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class WarrantyController {
 
   private final WarrantyService warrantyService;
+  private final WarrantyReminderService reminderService;
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
@@ -64,5 +66,10 @@ public class WarrantyController {
       @PathVariable UUID id
   ) {
     warrantyService.voidWarranty(jwt.getSubject(), id);
+  }
+
+  @PostMapping("/internal/reminders/generate")
+  public int generateReminders() {
+    return reminderService.generateDueReminders();
   }
 }

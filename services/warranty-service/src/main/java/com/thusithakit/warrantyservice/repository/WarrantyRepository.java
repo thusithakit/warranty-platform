@@ -39,4 +39,18 @@ public interface WarrantyRepository
       @Param("today") LocalDate today,
       @Param("batchSize") int batchSize
   );
+
+  @Query("""
+    SELECT w
+    FROM Warranty w
+    WHERE w.status = 'ACTIVE'
+      AND w.endDate IS NOT NULL
+      AND w.endDate >= :today
+      AND w.endDate <= :maximumDate
+    ORDER BY w.endDate ASC
+    """)
+  List<Warranty> findActiveWarrantiesEndingBetween(
+      @Param("today") LocalDate today,
+      @Param("maximumDate") LocalDate maximumDate
+  );
 }

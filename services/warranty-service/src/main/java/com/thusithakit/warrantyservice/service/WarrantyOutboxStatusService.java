@@ -1,20 +1,26 @@
 package com.thusithakit.warrantyservice.service;
 
 import com.thusithakit.warrantyservice.entity.WarrantyOutboxEvent;
+import com.thusithakit.warrantyservice.entity.WarrantyReminderDispatch;
 import com.thusithakit.warrantyservice.repository.WarrantyOutboxEventRepository;
+import com.thusithakit.warrantyservice.repository.WarrantyReminderDispatchRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import tools.jackson.databind.JsonNode;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class WarrantyOutboxStatusService {
 
   private final WarrantyOutboxEventRepository repository;
+  private final WarrantyReminderDispatchRepository reminderRepository;
 
   @Value("${app.outbox.max-attempts:10}")
   private int maxAttempts;
@@ -26,19 +32,24 @@ public class WarrantyOutboxStatusService {
   private long maxDelayMs;
 
   public WarrantyOutboxStatusService(
-      WarrantyOutboxEventRepository repository
+      WarrantyOutboxEventRepository repository,
+      WarrantyReminderDispatchRepository reminderRepository
   ) {
     this.repository = repository;
+    this.reminderRepository = reminderRepository;
   }
 
   @Transactional
-  public void markPublished(
-      java.util.UUID eventId,
-      Instant claimTime
-  ) {
+  public void markPublished(UUID eventId, Instant claimTime) {
+
     WarrantyOutboxEvent event = getOwnedEvent(eventId, claimTime);
 
     Instant now = Instant.now();
+
+    // Update the reminder dispatch when this is a reminder event.
+    if ("WarrantyExpiringSoon".equals(event.getEventType())) {
+      markReminderDispatched(event.getPayload(), now);
+    }
 
     event.setStatus("PUBLISHED");
     event.setPublishedAt(now);
@@ -46,9 +57,57 @@ public class WarrantyOutboxStatusService {
     event.setLastError(null);
   }
 
+  private void markReminderDispatched(JsonNode payload, Instant now) {
+
+    JsonNode dispatchIdNode = payload.path("data").path("dispatchId");
+
+    if (dispatchIdNode.isMissingNode()
+        || dispatchIdNode.isNull()
+        || dispatchIdNode.asString().isBlank()) {
+      throw new IllegalStateException(
+          "WarrantyExpiringSoon event is missing dispatchId"
+      );
+    }
+
+    UUID dispatchId;
+
+    try {
+      dispatchId = UUID.fromString(dispatchIdNode.asString());
+    } catch (IllegalArgumentException exception) {
+      throw new IllegalStateException(
+          "Invalid reminder dispatch ID in warranty event",
+          exception
+      );
+    }
+
+    int updated = reminderRepository.updateStatus(
+        dispatchId,
+        WarrantyReminderDispatch.Status.DISPATCHED,
+        WarrantyReminderDispatch.Status.PENDING,
+        now
+    );
+
+    if (updated == 0) {
+      WarrantyReminderDispatch dispatch = reminderRepository
+          .findById(dispatchId)
+          .orElseThrow(() -> new IllegalStateException(
+              "Reminder dispatch does not exist: " + dispatchId
+          ));
+
+      // Allow safe repeated processing if it was already dispatched.
+      if (dispatch.getStatus()
+          != WarrantyReminderDispatch.Status.DISPATCHED) {
+        throw new IllegalStateException(
+            "Could not mark reminder dispatch as dispatched: "
+                + dispatchId
+        );
+      }
+    }
+  }
+
   @Transactional
   public void scheduleRetry(
-      java.util.UUID eventId,
+      UUID eventId,
       Instant claimTime,
       Exception exception
   ) {
@@ -79,13 +138,11 @@ public class WarrantyOutboxStatusService {
 
     Duration delay = calculateRetryDelay(attempts);
 
-    event.setNextAttemptAt(
-        Instant.now().plus(delay)
-    );
+    event.setNextAttemptAt(Instant.now().plus(delay));
   }
 
   private WarrantyOutboxEvent getOwnedEvent(
-      java.util.UUID eventId,
+      UUID eventId,
       Instant claimTime
   ) {
     WarrantyOutboxEvent event = repository.findById(eventId)

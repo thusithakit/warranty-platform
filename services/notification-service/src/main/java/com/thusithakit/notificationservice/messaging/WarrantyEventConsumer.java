@@ -5,7 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
@@ -32,21 +32,54 @@ public class WarrantyEventConsumer {
   public void consumeWarrantyEvent(String message) {
 
     try {
-      EventEnvelope<WarrantyExpiredData> event =
-          objectMapper.readValue(
-              message,
-              new TypeReference<>() {}
-          );
+      JsonNode root = objectMapper.readTree(message);
 
-      if (!"WarrantyExpired".equals(event.eventType())) {
-        log.debug(
-            "Ignoring unsupported warranty event: {}",
-            event.eventType()
+      JsonNode eventTypeNode = root.path("eventType");
+
+      if (eventTypeNode.isMissingNode()
+          || eventTypeNode.isNull()) {
+        throw new IllegalArgumentException(
+            "Warranty event is missing eventType"
         );
-        return;
       }
 
-      notificationService.processWarrantyExpired(event);
+      String eventType = eventTypeNode.asString();
+
+      switch (eventType) {
+
+        case "WarrantyExpired" -> {
+          EventEnvelope<WarrantyExpiredData> event =
+              objectMapper.readValue(
+                  message,
+                  objectMapper.getTypeFactory()
+                      .constructParametricType(
+                          EventEnvelope.class,
+                          WarrantyExpiredData.class
+                      )
+              );
+
+          notificationService.processWarrantyExpired(event);
+        }
+
+        case "WarrantyExpiringSoon" -> {
+          EventEnvelope<WarrantyExpiringSoonData> event =
+              objectMapper.readValue(
+                  message,
+                  objectMapper.getTypeFactory()
+                      .constructParametricType(
+                          EventEnvelope.class,
+                          WarrantyExpiringSoonData.class
+                      )
+              );
+
+          notificationService.processWarrantyExpiringSoon(event);
+        }
+
+        default -> log.debug(
+            "Ignoring unsupported warranty event: {}",
+            eventType
+        );
+      }
 
     } catch (Exception exception) {
 

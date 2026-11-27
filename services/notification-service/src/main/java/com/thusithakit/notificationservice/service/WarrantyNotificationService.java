@@ -4,6 +4,7 @@ import com.thusithakit.notificationservice.entity.Notification;
 import com.thusithakit.notificationservice.entity.NotificationType;
 import com.thusithakit.notificationservice.messaging.EventEnvelope;
 import com.thusithakit.notificationservice.messaging.WarrantyExpiredData;
+import com.thusithakit.notificationservice.messaging.WarrantyExpiringSoonData;
 import com.thusithakit.notificationservice.repository.InboxEventRepository;
 import com.thusithakit.notificationservice.repository.NotificationRepository;
 import org.slf4j.Logger;
@@ -37,23 +38,12 @@ public class WarrantyNotificationService {
   public void processWarrantyExpired(
       EventEnvelope<WarrantyExpiredData> event
   ) {
-
-    validate(event);
+    validateExpired(event);
 
     WarrantyExpiredData data = event.data();
 
-    int inserted = inboxRepository.insertIfNotProcessed(
-        event.eventId(),
-        event.eventType(),
-        event.aggregateId(),
-        CONSUMER_NAME
-    );
-
-    if (inserted == 0) {
-      log.info(
-          "Ignoring duplicate event: eventId={}",
-          event.eventId()
-      );
+    if (!registerEvent(event.eventId(), event.eventType(),
+        event.aggregateId())) {
       return;
     }
 
@@ -84,7 +74,72 @@ public class WarrantyNotificationService {
     );
   }
 
-  private void validate(
+  @Transactional
+  public void processWarrantyExpiringSoon(
+      EventEnvelope<WarrantyExpiringSoonData> event
+  ) {
+    validateExpiringSoon(event);
+
+    WarrantyExpiringSoonData data = event.data();
+
+    if (!registerEvent(event.eventId(), event.eventType(),
+        event.aggregateId())) {
+      return;
+    }
+
+    String title = data.daysBefore() == 1
+        ? "Warranty expires tomorrow"
+        : "Warranty expiring soon";
+
+    String message = data.daysBefore() == 1
+        ? "One of your warranties expires tomorrow ("
+        + data.endDate() + ")."
+        : "One of your warranties expires in "
+        + data.daysBefore() + " days ("
+        + data.endDate() + ").";
+
+    Notification notification = new Notification(
+        data.userId(),
+        event.eventId(),
+        NotificationType.WARRANTY_EXPIRING_SOON,
+        title,
+        message,
+        "WARRANTY",
+        data.warrantyId()
+    );
+
+    notificationRepository.save(notification);
+
+    log.info(
+        "Created warranty expiring notification: eventId={}, userId={}, warrantyId={}, daysBefore={}",
+        event.eventId(),
+        data.userId(),
+        data.warrantyId(),
+        data.daysBefore()
+    );
+  }
+
+  private boolean registerEvent(
+      java.util.UUID eventId,
+      String eventType,
+      java.util.UUID aggregateId
+  ) {
+    int inserted = inboxRepository.insertIfNotProcessed(
+        eventId,
+        eventType,
+        aggregateId,
+        CONSUMER_NAME
+    );
+
+    if (inserted == 0) {
+      log.info("Ignoring duplicate event: eventId={}", eventId);
+      return false;
+    }
+
+    return true;
+  }
+
+  private void validateExpired(
       EventEnvelope<WarrantyExpiredData> event
   ) {
     Objects.requireNonNull(event, "Event must not be null");
@@ -98,13 +153,7 @@ public class WarrantyNotificationService {
       throw new IllegalArgumentException("Unsupported event type");
     }
 
-    if (!"WARRANTY".equals(event.aggregateType())) {
-      throw new IllegalArgumentException("Invalid aggregate type");
-    }
-
-    if (event.eventVersion() == null || event.eventVersion() != 1) {
-      throw new IllegalArgumentException("Unsupported event version");
-    }
+    validateEnvelope(event.eventVersion(), event.aggregateType());
 
     Objects.requireNonNull(data.warrantyId(), "Warranty ID is required");
     Objects.requireNonNull(data.userId(), "User ID is required");
@@ -117,6 +166,56 @@ public class WarrantyNotificationService {
       throw new IllegalArgumentException(
           "Event aggregate ID does not match warranty ID"
       );
+    }
+  }
+
+  private void validateExpiringSoon(
+      EventEnvelope<WarrantyExpiringSoonData> event
+  ) {
+    Objects.requireNonNull(event, "Event must not be null");
+    Objects.requireNonNull(event.eventId(), "Event ID is required");
+    Objects.requireNonNull(event.aggregateId(), "Aggregate ID is required");
+    Objects.requireNonNull(event.data(), "Event data is required");
+
+    WarrantyExpiringSoonData data = event.data();
+
+    if (!"WarrantyExpiringSoon".equals(event.eventType())) {
+      throw new IllegalArgumentException("Unsupported event type");
+    }
+
+    validateEnvelope(event.eventVersion(), event.aggregateType());
+
+    Objects.requireNonNull(data.dispatchId(), "Dispatch ID is required");
+    Objects.requireNonNull(data.warrantyId(), "Warranty ID is required");
+    Objects.requireNonNull(data.userId(), "User ID is required");
+    Objects.requireNonNull(data.endDate(), "End date is required");
+    Objects.requireNonNull(data.daysBefore(), "Days before is required");
+
+    if (data.userId().isBlank()) {
+      throw new IllegalArgumentException("User ID must not be blank");
+    }
+
+    if (data.daysBefore() < 1 || data.daysBefore() > 365) {
+      throw new IllegalArgumentException("Invalid reminder interval");
+    }
+
+    if (!event.aggregateId().equals(data.warrantyId())) {
+      throw new IllegalArgumentException(
+          "Event aggregate ID does not match warranty ID"
+      );
+    }
+  }
+
+  private void validateEnvelope(
+      Integer eventVersion,
+      String aggregateType
+  ) {
+    if (!"WARRANTY".equals(aggregateType)) {
+      throw new IllegalArgumentException("Invalid aggregate type");
+    }
+
+    if (eventVersion == null || eventVersion != 1) {
+      throw new IllegalArgumentException("Unsupported event version");
     }
   }
 }
